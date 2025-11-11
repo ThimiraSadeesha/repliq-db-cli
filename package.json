@@ -1,0 +1,39 @@
+{
+  "name": "db-backup-cli",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@types/archiver": "^7.0.0",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^24.10.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.928.0",
+    "@azure/storage-blob": "^12.29.1",
+    "@google-cloud/storage": "^7.17.3",
+    "@slack/webhook": "^7.0.6",
+    "archiver": "^7.0.1",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "dotenv": "^17.2.3",
+    "fs-extra": "^11.3.2",
+    "inquirer": "^12.11.0",
+    "lumilogger": "^2.0.1",
+    "mongodb": "^7.0.0",
+    "mysql2": "^3.15.3",
+    "ora": "^9.0.0",
+    "pg": "^8.16.3",
+    "winston": "^3.18.3"
+  }
+}
