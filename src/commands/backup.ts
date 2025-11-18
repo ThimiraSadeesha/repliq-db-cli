@@ -23,11 +23,11 @@ function formatValue(v: any) {
 }
 
 async function backupDatabase() {
-    const host = process.env.TGT_DB_HOST!;
-    const port = Number(process.env.TGT_DB_PORT!);
-    const user = process.env.TGT_DB_USER!;
-    const password = process.env.TGT_DB_PWD!;
-    const database = process.env.TGT_DB_NAME!;
+    const host = process.env.SRC_DB_HOST!;
+    const port = Number(process.env.SRC_DB_PORT!);
+    const user = process.env.SRC_DB_USER!;
+    const password = process.env.SRC_DB_PWD!;
+    const database = process.env.SRC_DB_NAME!;
     const connection = await mysql.createConnection({ host, port, user, password, database, multipleStatements: true });
     const dateStr = new Date().toISOString().replace(/[:.]/g, '-');
     const backupFile = path.join(backupDir, `${database}_${dateStr}.sql`);
