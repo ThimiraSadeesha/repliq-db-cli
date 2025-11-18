@@ -2,7 +2,7 @@ import mysql from 'mysql2/promise';
 import dotenv from 'dotenv';
 dotenv.config();
 
-async function testConnection(host: string, port: number, user: string, password: string, database: string) {
+export async function testConnection(host: string, port: number, user: string, password: string, database: string) {
     try {
         const connection = await mysql.createConnection({ host, port, user, password, database });
         await connection.ping();

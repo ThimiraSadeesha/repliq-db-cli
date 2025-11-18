@@ -2,10 +2,11 @@
 import { program } from 'commander';
 
 import 'dotenv/config';
-import { backupMySQL } from './commands/backup';
+
 import { restoreMySQL } from './commands/restore';
-import {testConnection} from "./commands/connection-test";
+
 import logger from "lumilogger";
+import {testConnection} from "./commands/connection-test";
 
 // Banner
 const banner = `
