@@ -1,5 +1,5 @@
 {
-  "name": "db-backup-cli",
+  "name": "snap-db",
   "version": "1.0.0",
   "description": "A comprehensive database backup and restore CLI tool",
   "main": "dist/index.js",
