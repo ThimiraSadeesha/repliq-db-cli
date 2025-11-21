@@ -9,7 +9,7 @@ import { backupCommand } from './commands/backup';
 import {SessionState} from "./types/types";
 
 
-function showGreeting() {
+export function showGreeting() {
     console.clear();
     console.log(
         chalk.cyan(
