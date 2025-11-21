@@ -4,4 +4,3 @@ export * from './utils/prompts';
 export * from './commands/test';
 export * from './commands/backup';
 export * from './commands/copy';
-export * from './tests/test-cli';
