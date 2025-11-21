@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/dev      # Only build on feature/dev and main
+      - feature/dev
   pull_request:
     branches:
       - main
@@ -17,7 +17,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x] # Test on multiple Node versions
+        node-version: [18.x, 20.x]
 
     steps:
       - name: Checkout repository
@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set environment type
+        run: echo "ENV_TYPE=${{ github.ref_name == 'main' && 'production' || 'development' }}" >> $GITHUB_ENV
+
       - name: Run tests
         run: npm run test
 
@@ -40,3 +43,6 @@ jobs:
 
       - name: Verify build output
         run: ls -la dist
+
+      - name: Show environment
+        run: echo "Running in $ENV_TYPE mode"
