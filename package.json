@@ -1,10 +1,10 @@
 {
-  "name": "snap-db",
+  "name": "local-db",
   "version": "1.1.0",
   "description": "A comprehensive database backup and restore CLI tool",
   "main": "dist/index.js",
   "bin": {
-    "snap-db": "./dist/cli.js"
+    "local-db": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",

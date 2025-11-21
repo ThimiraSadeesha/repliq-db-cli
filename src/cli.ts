@@ -13,7 +13,7 @@ export function showGreeting() {
     console.clear();
     console.log(
         chalk.cyan(
-            figlet.textSync('Snap-DB', {
+            figlet.textSync('LOCAL DB', {
                 font: 'Standard',
                 horizontalLayout: 'default',
             })
