@@ -13,7 +13,7 @@ export function showGreeting() {
     console.clear();
     console.log(
         chalk.cyan(
-            figlet.textSync('Snap-DB', {
+            figlet.textSync('REPLIQ DB', {
                 font: 'Standard',
                 horizontalLayout: 'default',
             })
@@ -22,6 +22,7 @@ export function showGreeting() {
     console.log(chalk.gray('━'.repeat(60)));
     console.log(chalk.white('  MySQL Database Backup & Copy Tool'));
     console.log(chalk.gray('  Version 1.0.0'));
+    console.log(chalk.green('  Author: ThimiraS'));
     console.log(chalk.gray('━'.repeat(60)));
     console.log();
 }

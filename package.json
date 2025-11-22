@@ -1,10 +1,10 @@
 {
-  "name": "db-backup-cli",
-  "version": "1.0.0",
+  "name": "repliq-db",
+  "version": "1.0.3",
   "description": "A comprehensive database backup and restore CLI tool",
   "main": "dist/index.js",
   "bin": {
-    "snap-db": "./dist/cli.js"
+    "repliq-db": "./dist/cli.js"
   },
   "scripts": {
     "build": "tsc",
