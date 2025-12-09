@@ -1,6 +1,6 @@
 {
   "name": "repliq-db",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "A comprehensive database backup and restore CLI tool",
   "main": "dist/index.js",
   "bin": {
@@ -22,7 +22,7 @@
     "postgresql",
     "mongodb"
   ],
-  "author": "Your Name",
+  "author": "ThimiraS",
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",

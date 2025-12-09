@@ -1,12 +1,12 @@
 # Database Backup CLI Tool
 
-A simple and production-ready command-line tool for **backing up and copying MySQL databases** between a source and target database.
+A simple and production-ready command-line tool for **backing up and copying Relational databases** between a source and target database.
 
 ---
 
 ## ✨ Features
 
-* 🗄️ **MySQL Support**: Works exclusively with MySQL databases
+* 🗄️ **Relational Database Support**: Works exclusively with Relational databases
 * 📦 **Backup**: Backup source or target database
 * 🔄 **Copy**: Copy databases from source to target, including different hosts
 * 🔒 **Secure**: Handles credentials safely
