@@ -33,6 +33,8 @@ export async function showMainMenu(sourceConnected: boolean, targetConnected: bo
 
     if (sourceConnected && targetConnected) {
         choices.push(
+            { name: '🔄 Change Source DB Connection', value: 'change-source' },
+            { name: '🔄 Change Target DB Connection', value: 'change-target' },
             { name: '📋 Copy Database (Source → Target)', value: 'copy' },
             { name: '💾 Backup Source Database', value: 'backup-source' },
             { name: '💾 Backup Target Database', value: 'backup-target' }
@@ -43,6 +45,7 @@ export async function showMainMenu(sourceConnected: boolean, targetConnected: bo
             { name: chalk.gray('💾 Backup Database (Test connection first)'), value: 'backup-disabled' }
         );
     }
+
 
     choices.push({ name: '❌ Exit', value: 'exit' });
 

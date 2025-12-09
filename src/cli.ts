@@ -2,7 +2,7 @@
 
 import figlet from 'figlet';
 import chalk from 'chalk';
-import { showMainMenu, confirmAction } from './utils/prompts';
+import {showMainMenu, confirmAction, promptCredentials} from './utils/prompts';
 import { testConnectionCommand } from './commands/test';
 import { copyCommand } from './commands/copy'; // <-- our enhanced copyCommand
 import { backupCommand } from './commands/backup';
@@ -46,9 +46,20 @@ async function main() {
                 await testConnectionCommand(state);
                 break;
 
+            case 'change-source':
+                state.sourceConfig = await promptCredentials('Source');
+                state.sourceConnected = false;
+                console.log(chalk.green('✅ Source DB credentials updated.'));
+                break;
+
+            case 'change-target':
+                state.targetConfig = await promptCredentials('Target');
+                state.targetConnected = false;
+                console.log(chalk.green('✅ Target DB credentials updated.'));
+                break;
+
             case 'copy':
                 if (state.sourceConfig && state.targetConfig) {
-                    // Calls the enhanced copyCommand with full DB object copy
                     await copyCommand(state.sourceConfig, state.targetConfig);
                 } else {
                     console.log(chalk.yellow('\n⚠️  Please test connections first!'));
