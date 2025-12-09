@@ -57,3 +57,44 @@ export async function showMainMenu(sourceConnected: boolean, targetConnected: bo
 
     return answer.action;
 }
+export async function askMultiSelect(
+    choices: { name: string; value: string; checked?: boolean }[],
+    message: string
+): Promise<string[]> {
+    const answers = await inquirer.prompt([
+        {
+            type: 'checkbox',
+            name: 'selected',
+            message,
+            choices,
+            validate: (answer: string[]) => {
+                if (answer.length < 1) {
+                    return 'You must choose at least one option.';
+                }
+                return true;
+            },
+        },
+    ]);
+    return answers.selected;
+}
+
+export function getCreateSQL(result: any[], key: string, objectName?: string): string | null {
+    if (!result || !result[0]) {
+        if (objectName) console.log(chalk.red(`⚠️ Could not read CREATE statement for ${objectName}`));
+        return null;
+    }
+    return result[0][key] ?? null;
+}
+
+export function getRoutineCreateSQL(createStmt: any[], type: 'PROCEDURE' | 'FUNCTION', name: string): string | null {
+    if (!createStmt || !createStmt[0]) {
+        console.log(chalk.red(`⚠️ Could not get CREATE statement for ${type} ${name}`));
+        return null;
+    }
+    const key = Object.keys(createStmt[0]).find(k => k.toLowerCase() === `create ${type.toLowerCase()}`);
+    if (!key) {
+        console.log(chalk.red(`⚠️ CREATE statement column not found for ${type} ${name}`));
+        return null;
+    }
+    return createStmt[0][key];
+}
