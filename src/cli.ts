@@ -19,9 +19,9 @@ export function showGreeting() {
         )
     );
     console.log(chalk.gray('━'.repeat(60)));
-    console.log(chalk.white('  MySQL Database Backup & Copy Tool'));
-    console.log(chalk.gray('  Version 1.0.0'));
-    console.log(chalk.green('  Author: ThimiraS'));
+    console.log(chalk.white('  Database Backup & Copy CLI Tool'));
+    console.log(chalk.yellow('  Author: ThimiraS'));
+    console.log(chalk.gray('  2025'));
     console.log(chalk.gray('━'.repeat(60)));
     console.log();
 }
