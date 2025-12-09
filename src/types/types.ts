@@ -12,3 +12,16 @@ export interface SessionState {
     sourceConnected: boolean;
     targetConnected: boolean;
 }
+
+export type RoutineRow = {
+    ROUTINE_NAME: string;
+    ROUTINE_TYPE: 'PROCEDURE' | 'FUNCTION';
+};
+
+export type TriggerRow = {
+    Trigger: string;
+};
+
+export type EventRow = {
+    Name: string;
+};
