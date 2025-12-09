@@ -2,12 +2,11 @@
 
 import figlet from 'figlet';
 import chalk from 'chalk';
-import { showMainMenu } from './utils/prompts';
+import { showMainMenu, confirmAction } from './utils/prompts';
 import { testConnectionCommand } from './commands/test';
-import { copyCommand } from './commands/copy';
+import { copyCommand } from './commands/copy'; // <-- our enhanced copyCommand
 import { backupCommand } from './commands/backup';
-import {SessionState} from "./types/types";
-
+import { SessionState } from "./types/types";
 
 export function showGreeting() {
     console.clear();
@@ -33,6 +32,8 @@ async function main() {
     const state: SessionState = {
         sourceConnected: false,
         targetConnected: false,
+        sourceConfig: undefined,
+        targetConfig: undefined,
     };
 
     let running = true;
@@ -47,19 +48,26 @@ async function main() {
 
             case 'copy':
                 if (state.sourceConfig && state.targetConfig) {
+                    // Calls the enhanced copyCommand with full DB object copy
                     await copyCommand(state.sourceConfig, state.targetConfig);
+                } else {
+                    console.log(chalk.yellow('\n⚠️  Please test connections first!'));
                 }
                 break;
 
             case 'backup-source':
                 if (state.sourceConfig) {
                     await backupCommand(state.sourceConfig);
+                } else {
+                    console.log(chalk.yellow('\n⚠️  Please test source connection first!'));
                 }
                 break;
 
             case 'backup-target':
                 if (state.targetConfig) {
                     await backupCommand(state.targetConfig);
+                } else {
+                    console.log(chalk.yellow('\n⚠️  Please test target connection first!'));
                 }
                 break;
 
