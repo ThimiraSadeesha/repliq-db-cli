@@ -15,15 +15,22 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
         for (const tableName of tableNames) {
             const [createStmt] = await srcConn.query<RowDataPacket[]>(`SHOW CREATE TABLE \`${tableName}\``);
             const sqlCreate = (createStmt[0] as any)['Create Table'];
-
             await tgtConn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
             await tgtConn.query(sqlCreate);
             const [rows] = await srcConn.query<RowDataPacket[]>(`SELECT * FROM \`${tableName}\``);
             if (rows.length) {
                 const columns = Object.keys(rows[0]);
-                const insertSQL = `INSERT INTO \`${tableName}\` (${columns.map(c => `\`${c}\``).join(',')}) VALUES ?`;
-                const values = rows.map(row => columns.map(col => row[col]));
-                await tgtConn.query(insertSQL, [values]);
+                for (const row of rows) {
+                    const values = columns.map(col => {
+                        const val = row[col];
+                        if (Array.isArray(val) || typeof val === 'object') {
+                            return JSON.stringify(val);
+                        }
+                        return val;
+                    });
+                    const insertSQL = `INSERT INTO \`${tableName}\` (${columns.map(c => `\`${c}\``).join(',')}) VALUES (${columns.map(() => '?').join(',')})`;
+                    await tgtConn.query(insertSQL, values);
+                }
             }
         }
 
@@ -42,7 +49,6 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
             await tgtConn.query(`DROP TRIGGER IF EXISTS \`${trig.Trigger}\``);
             await tgtConn.query((createTrig[0] as any)['SQL Original Statement']);
         }
-
         const [routinesRaw] = await srcConn.query<RowDataPacket[]>(
             `SELECT ROUTINE_NAME, ROUTINE_TYPE
              FROM INFORMATION_SCHEMA.ROUTINES
@@ -67,6 +73,7 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
             await tgtConn.query(`DROP EVENT IF EXISTS \`${evt.Name}\``);
             await tgtConn.query((createEvt[0] as any)['Create Event']);
         }
+
         await tgtConn.query('SET FOREIGN_KEY_CHECKS=1;');
 
         console.log(`✅ Database copied from ${sourceConfig.database} to ${targetConfig.database} successfully!`);
