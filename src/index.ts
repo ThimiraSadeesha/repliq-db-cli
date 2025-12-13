@@ -4,3 +4,6 @@ export * from './utils/prompts';
 export * from './commands/test';
 export * from './commands/backup';
 export * from './commands/copy';
+export * from './core/backup';
+export * from './core/restore';
+export * from './core/copy';
