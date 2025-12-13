@@ -1,6 +1,6 @@
 {
   "name": "repliq-db",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A comprehensive database backup and restore CLI tool",
   "main": "dist/index.js",
   "bin": {
