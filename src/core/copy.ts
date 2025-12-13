@@ -43,6 +43,7 @@ export async function copyDatabase(
                 for (const row of rows) {
                     const values = columns.map(col => {
                         const val = row[col];
+                        if (val === undefined || val === null || val === 'null') return null;
                         if (val instanceof Date) return val.toISOString().slice(0, 19).replace('T', ' ');
                         if (Array.isArray(val) || typeof val === 'object') return JSON.stringify(val);
                         return val;
@@ -54,6 +55,7 @@ export async function copyDatabase(
             }
             tablesCopied++;
         }
+
 
         const [views] = await srcConn.query<RowDataPacket[]>(`SHOW FULL TABLES WHERE Table_type = 'VIEW'`);
         for (const view of views) {
