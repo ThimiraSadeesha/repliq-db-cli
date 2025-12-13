@@ -7,24 +7,17 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
     const tgtConn = await getConnection(targetConfig);
 
     try {
-        // Disable foreign key checks
         await tgtConn.query('SET FOREIGN_KEY_CHECKS=0;');
 
-        // --------------------
-        // Copy Tables + Data
-        // --------------------
         const [tables] = await srcConn.query<RowDataPacket[]>(`SHOW TABLES`);
         const tableNames = tables.map(t => Object.values(t)[0] as string);
 
         for (const tableName of tableNames) {
-            // Table structure
             const [createStmt] = await srcConn.query<RowDataPacket[]>(`SHOW CREATE TABLE \`${tableName}\``);
             const sqlCreate = (createStmt[0] as any)['Create Table'];
 
             await tgtConn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
             await tgtConn.query(sqlCreate);
-
-            // Table data
             const [rows] = await srcConn.query<RowDataPacket[]>(`SELECT * FROM \`${tableName}\``);
             if (rows.length) {
                 const columns = Object.keys(rows[0]);
@@ -34,9 +27,6 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
             }
         }
 
-        // --------------------
-        // Copy Views
-        // --------------------
         const [views] = await srcConn.query<RowDataPacket[]>(`SHOW FULL TABLES WHERE Table_type = 'VIEW'`);
         for (const view of views) {
             const viewName = Object.values(view)[0] as string;
@@ -45,9 +35,6 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
             await tgtConn.query((createView[0] as any)['Create View']);
         }
 
-        // --------------------
-        // Copy Triggers
-        // --------------------
         const [triggerRows] = await srcConn.query<RowDataPacket[]>(`SHOW TRIGGERS`);
         const triggers = triggerRows as TriggerRow[];
         for (const trig of triggers) {
@@ -56,9 +43,6 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
             await tgtConn.query((createTrig[0] as any)['SQL Original Statement']);
         }
 
-        // --------------------
-        // Copy Stored Procedures & Functions
-        // --------------------
         const [routinesRaw] = await srcConn.query<RowDataPacket[]>(
             `SELECT ROUTINE_NAME, ROUTINE_TYPE
              FROM INFORMATION_SCHEMA.ROUTINES
@@ -75,10 +59,6 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
             await tgtConn.query(`DROP ${routine.ROUTINE_TYPE} IF EXISTS \`${routine.ROUTINE_NAME}\``);
             await tgtConn.query((createStmt[0] as any)[key]);
         }
-
-        // --------------------
-        // Copy Events
-        // --------------------
         const [eventsRaw] = await srcConn.query<RowDataPacket[]>(`SHOW EVENTS`);
         const events = eventsRaw as EventRow[];
 
@@ -87,8 +67,6 @@ export async function copyDatabase(sourceConfig: DBConfig, targetConfig: DBConfi
             await tgtConn.query(`DROP EVENT IF EXISTS \`${evt.Name}\``);
             await tgtConn.query((createEvt[0] as any)['Create Event']);
         }
-
-        // Re-enable foreign key checks
         await tgtConn.query('SET FOREIGN_KEY_CHECKS=1;');
 
         console.log(`✅ Database copied from ${sourceConfig.database} to ${targetConfig.database} successfully!`);

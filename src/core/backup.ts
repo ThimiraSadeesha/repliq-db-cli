@@ -7,7 +7,6 @@ import { RowDataPacket } from 'mysql2/promise';
 import {getConnection} from "../utils/connection";
 
 export async function backupDatabase(config: DBConfig, outputFile?: string): Promise<string> {
-    // Create backup folder
     const backupFolder = path.join(os.homedir(), 'backups');
     await fs.mkdir(backupFolder, { recursive: true });
 
@@ -19,20 +18,14 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
     sqlDump += `-- Date: ${new Date().toISOString()}\n\n`;
     sqlDump += `SET FOREIGN_KEY_CHECKS=0;\n\n`;
 
-    // --------------------
-    // Tables + Data
-    // --------------------
     const [tables] = await connection.query<RowDataPacket[]>(`SHOW TABLES`);
     const tableNames = tables.map(t => Object.values(t)[0] as string);
 
     for (const tableName of tableNames) {
-        // Table structure
         const [createStmt] = await connection.query<RowDataPacket[]>(`SHOW CREATE TABLE \`${tableName}\``);
         sqlDump += `--\n-- Table structure for \`${tableName}\`\n--\n\n`;
         sqlDump += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
         sqlDump += (createStmt[0] as any)['Create Table'] + ';\n\n';
-
-        // Table data
         const [rows] = await connection.query<RowDataPacket[]>(`SELECT * FROM \`${tableName}\``);
         if (rows.length) {
             const columns = Object.keys(rows[0]);
@@ -45,9 +38,6 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         }
     }
 
-    // --------------------
-    // Views
-    // --------------------
     const [views] = await connection.query<RowDataPacket[]>(`SHOW FULL TABLES WHERE Table_type = 'VIEW'`);
     for (const view of views) {
         const viewName = Object.values(view)[0] as string;
@@ -56,9 +46,6 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         sqlDump += (createView[0] as any)['Create View'] + ';\n\n';
     }
 
-    // --------------------
-    // Triggers
-    // --------------------
     const [triggerRows] = await connection.query<RowDataPacket[]>(`SHOW TRIGGERS`);
     const triggers = triggerRows as TriggerRow[];
     for (const trig of triggers) {
@@ -68,9 +55,6 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         sqlDump += (createTrig[0] as any)['SQL Original Statement'] + ';\n\n';
     }
 
-    // --------------------
-    // Stored Procedures & Functions
-    // --------------------
     const [routinesRaw] = await connection.query<RowDataPacket[]>(
         `SELECT ROUTINE_NAME, ROUTINE_TYPE
          FROM INFORMATION_SCHEMA.ROUTINES
@@ -88,9 +72,6 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         sqlDump += (createStmt[0] as any)[key] + ';\n\n';
     }
 
-    // --------------------
-    // Events
-    // --------------------
     const [eventsRaw] = await connection.query<RowDataPacket[]>(`SHOW EVENTS`);
     const events = eventsRaw as EventRow[];
 
@@ -102,7 +83,6 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
 
     sqlDump += `SET FOREIGN_KEY_CHECKS=1;\n`;
 
-    // Write backup to file
     await fs.writeFile(filename, sqlDump, 'utf-8');
     await connection.end();
 
