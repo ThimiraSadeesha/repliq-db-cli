@@ -4,7 +4,7 @@ import figlet from 'figlet';
 import chalk from 'chalk';
 import {showMainMenu, confirmAction, promptCredentials} from './utils/prompts';
 import { testConnectionCommand } from './commands/test';
-import { copyCommand } from './commands/copy'; // <-- our enhanced copyCommand
+import { copyCommand } from './commands/copy';
 import { backupCommand } from './commands/backup';
 import { SessionState } from "./types/types";
 

@@ -4,6 +4,8 @@ import {confirmAction, askMultiSelect, getCreateSQL, getRoutineCreateSQL} from '
 import { getConnection } from '../utils/connection';
 import {DBConfig, EventRow, RoutineRow, TriggerRow} from '../types/types';
 
+const INSERT_BATCH_SIZE = 400;
+
 export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Promise<void> {
     console.log(chalk.yellow(`\n⚠️  Warning: This may replace data and objects in ${tgtConfig.database}`));
 
@@ -32,7 +34,6 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
         const srcConn = await getConnection(srcConfig);
         const tgtConn = await getConnection(tgtConfig);
 
-        // Copy Tables
         if (copyOptions.includes('tables')) {
             spinner.text = 'Reading tables...';
             const [tables] = await srcConn.query<any[]>('SHOW TABLES');
@@ -55,18 +56,19 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
                 const [rows] = await srcConn.query<any[]>(`SELECT * FROM \`${tableName}\``);
                 if (Array.isArray(rows) && rows.length > 0) {
                     const columns = Object.keys(rows[0]);
-                    const placeholders = columns.map(() => '?').join(',');
-                    const insertSQL = `INSERT INTO \`${tableName}\` (${columns.map(c => `\`${c}\``).join(',')}) VALUES (${placeholders})`;
-                    for (const row of rows) {
-                        const values = columns.map(col => row[col]);
-                        await tgtConn.query(insertSQL, values);
+                    const colList = columns.map(c => `\`${c}\``).join(',');
+                    const oneRow = `(${columns.map(() => '?').join(',')})`;
+                    for (let start = 0; start < rows.length; start += INSERT_BATCH_SIZE) {
+                        const chunk = rows.slice(start, start + INSERT_BATCH_SIZE);
+                        const insertSQL = `INSERT INTO \`${tableName}\` (${colList}) VALUES ${chunk.map(() => oneRow).join(',')}`;
+                        const flat = chunk.flatMap(row => columns.map(col => row[col]));
+                        await tgtConn.query(insertSQL, flat);
                     }
                 }
             }
             await tgtConn.query('SET FOREIGN_KEY_CHECKS = 1');
         }
 
-        // Copy Views
         if (copyOptions.includes('views')) {
             spinner.text = 'Reading views...';
             const [views] = await srcConn.query<any[]>("SHOW FULL TABLES WHERE Table_type = 'VIEW'");
@@ -81,7 +83,6 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
             }
         }
 
-        // Copy Triggers
         if (copyOptions.includes('triggers')) {
             spinner.text = 'Reading triggers...';
             const [triggerRows] = await srcConn.query('SHOW TRIGGERS');
@@ -98,7 +99,6 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
             }
         }
 
-        // Copy Stored Procedures
         if (copyOptions.includes('routines')) {
             spinner.text = 'Reading stored procedures and functions...';
             const [routineRows] = await srcConn.query(
@@ -121,7 +121,6 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
             }
         }
 
-        // Copy Events
         if (copyOptions.includes('events')) {
             spinner.text = 'Reading events...';
             const [eventRows] = await srcConn.query('SHOW EVENTS');
