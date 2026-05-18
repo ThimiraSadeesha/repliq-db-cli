@@ -8,7 +8,6 @@ export async function testConnectionCommand(state: SessionState): Promise<void> 
     let srcOk = false;
     let tgtOk = false;
 
-    //  Source DB
     while (!srcOk) {
         console.log(chalk.cyan('\n🔹 Testing Source Database...'));
         const src = await promptCredentials('Source');
@@ -22,11 +21,10 @@ export async function testConnectionCommand(state: SessionState): Promise<void> 
             state.sourceConnected = false;
             console.log(chalk.red('❌ Source DB connection failed! Try again.'));
             const retry = await confirmAction('Do you want to re-enter source credentials?');
-            if (!retry) break; // user chooses not to retry
+            if (!retry) break;
         }
     }
 
-    // Target DB
     while (!tgtOk) {
         console.log(chalk.cyan('\n🔹 Testing Target Database...'));
         const tgt = await promptCredentials('Target');
@@ -40,7 +38,7 @@ export async function testConnectionCommand(state: SessionState): Promise<void> 
             state.targetConnected = false;
             console.log(chalk.red('❌ Target DB connection failed! Try again.'));
             const retry = await confirmAction('Do you want to re-enter target credentials?');
-            if (!retry) break; // user chooses not to retry
+            if (!retry) break;
         }
     }
 
