@@ -1,6 +1,9 @@
 import { DBConfig, RoutineRow, TriggerRow, EventRow } from '../types/types';
 import { RowDataPacket } from 'mysql2/promise';
 import { getConnection } from '../utils/connection';
+import { normalizeMysqlCollations } from '../utils/normalizeMysqlDdl';
+
+const INSERT_BATCH_SIZE = 400;
 
 export interface CopySummary {
     tablesCopied: number;
@@ -33,23 +36,28 @@ export async function copyDatabase(
 
         for (const tableName of tableNames) {
             const [createStmt] = await srcConn.query<RowDataPacket[]>(`SHOW CREATE TABLE \`${tableName}\``);
-            const sqlCreate = (createStmt[0] as any)['Create Table'];
+            const sqlCreate = normalizeMysqlCollations((createStmt[0] as any)['Create Table']);
             await tgtConn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
             await tgtConn.query(sqlCreate);
 
             const [rows] = await srcConn.query<RowDataPacket[]>(`SELECT * FROM \`${tableName}\``);
             if (rows.length) {
                 const columns = Object.keys(rows[0]);
-                for (const row of rows) {
-                    const values = columns.map(col => {
-                        const val = row[col];
-                        if (val === undefined || val === null || val === 'null') return null;
-                        if (val instanceof Date) return val.toISOString().slice(0, 19).replace('T', ' ');
-                        if (Array.isArray(val) || typeof val === 'object') return JSON.stringify(val);
-                        return val;
-                    });
-                    const insertSQL = `INSERT INTO \`${tableName}\` (${columns.map(c => `\`${c}\``).join(',')}) VALUES (${columns.map(() => '?').join(',')})`;
-                    await tgtConn.query(insertSQL, values);
+                const colList = columns.map(c => `\`${c}\``).join(',');
+                const oneRow = `(${columns.map(() => '?').join(',')})`;
+                for (let start = 0; start < rows.length; start += INSERT_BATCH_SIZE) {
+                    const chunk = rows.slice(start, start + INSERT_BATCH_SIZE);
+                    const insertSQL = `INSERT INTO \`${tableName}\` (${colList}) VALUES ${chunk.map(() => oneRow).join(',')}`;
+                    const flat = chunk.flatMap(row =>
+                        columns.map(col => {
+                            const val = row[col];
+                            if (val === undefined || val === null || val === 'null') return null;
+                            if (val instanceof Date) return val.toISOString().slice(0, 19).replace('T', ' ');
+                            if (Array.isArray(val) || typeof val === 'object') return JSON.stringify(val);
+                            return val;
+                        })
+                    );
+                    await tgtConn.query(insertSQL, flat);
                 }
                 rowsCopied += rows.length;
             }
@@ -62,7 +70,7 @@ export async function copyDatabase(
             const viewName = Object.values(view)[0] as string;
             const [createView] = await srcConn.query<RowDataPacket[]>(`SHOW CREATE VIEW \`${viewName}\``);
             await tgtConn.query(`DROP VIEW IF EXISTS \`${viewName}\``);
-            await tgtConn.query((createView[0] as any)['Create View']);
+            await tgtConn.query(normalizeMysqlCollations((createView[0] as any)['Create View']));
             viewsCopied++;
         }
         const [triggerRows] = await srcConn.query<RowDataPacket[]>(`SHOW TRIGGERS`);
@@ -70,7 +78,7 @@ export async function copyDatabase(
         for (const trig of triggers) {
             const [createTrig] = await srcConn.query<RowDataPacket[]>(`SHOW CREATE TRIGGER \`${trig.Trigger}\``);
             await tgtConn.query(`DROP TRIGGER IF EXISTS \`${trig.Trigger}\``);
-            await tgtConn.query((createTrig[0] as any)['SQL Original Statement']);
+            await tgtConn.query(normalizeMysqlCollations((createTrig[0] as any)['SQL Original Statement']));
             triggersCopied++;
         }
         const [routinesRaw] = await srcConn.query<RowDataPacket[]>(
@@ -87,7 +95,7 @@ export async function copyDatabase(
             );
             const key = routine.ROUTINE_TYPE === 'PROCEDURE' ? 'Create Procedure' : 'Create Function';
             await tgtConn.query(`DROP ${routine.ROUTINE_TYPE} IF EXISTS \`${routine.ROUTINE_NAME}\``);
-            await tgtConn.query((createStmt[0] as any)[key]);
+            await tgtConn.query(normalizeMysqlCollations((createStmt[0] as any)[key]));
             routinesCopied++;
         }
 
@@ -97,7 +105,7 @@ export async function copyDatabase(
         for (const evt of events) {
             const [createEvt] = await srcConn.query<RowDataPacket[]>(`SHOW CREATE EVENT \`${evt.Name}\``);
             await tgtConn.query(`DROP EVENT IF EXISTS \`${evt.Name}\``);
-            await tgtConn.query((createEvt[0] as any)['Create Event']);
+            await tgtConn.query(normalizeMysqlCollations((createEvt[0] as any)['Create Event']));
             eventsCopied++;
         }
 

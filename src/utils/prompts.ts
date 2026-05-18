@@ -1,6 +1,7 @@
 import inquirer from 'inquirer';
 import {DBConfig} from "../types/types";
 import chalk from "chalk";
+import { normalizeMysqlCollations } from './normalizeMysqlDdl';
 
 
 export async function promptCredentials(dbName: string): Promise<DBConfig> {
@@ -86,7 +87,9 @@ export function getCreateSQL(result: any[], key: string, objectName?: string): s
         if (objectName) console.log(chalk.red(`⚠️ Could not read CREATE statement for ${objectName}`));
         return null;
     }
-    return result[0][key] ?? null;
+    const raw = result[0][key];
+    if (raw == null) return null;
+    return normalizeMysqlCollations(String(raw));
 }
 
 export function getRoutineCreateSQL(createStmt: any[], type: 'PROCEDURE' | 'FUNCTION', name: string): string | null {
@@ -99,5 +102,5 @@ export function getRoutineCreateSQL(createStmt: any[], type: 'PROCEDURE' | 'FUNC
         console.log(chalk.red(`⚠️ CREATE statement column not found for ${type} ${name}`));
         return null;
     }
-    return createStmt[0][key];
+    return normalizeMysqlCollations(String(createStmt[0][key]));
 }

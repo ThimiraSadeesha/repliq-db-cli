@@ -5,6 +5,7 @@ import os from 'os';
 import { DBConfig, RoutineRow, TriggerRow, EventRow } from '../types/types';
 import { RowDataPacket } from 'mysql2/promise';
 import {getConnection} from "../utils/connection";
+import { normalizeMysqlCollations } from '../utils/normalizeMysqlDdl';
 
 export async function backupDatabase(config: DBConfig, outputFile?: string): Promise<string> {
     const backupFolder = path.join(os.homedir(), 'backups');
@@ -25,7 +26,7 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         const [createStmt] = await connection.query<RowDataPacket[]>(`SHOW CREATE TABLE \`${tableName}\``);
         sqlDump += `--\n-- Table structure for \`${tableName}\`\n--\n\n`;
         sqlDump += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
-        sqlDump += (createStmt[0] as any)['Create Table'] + ';\n\n';
+        sqlDump += normalizeMysqlCollations((createStmt[0] as any)['Create Table']) + ';\n\n';
         const [rows] = await connection.query<RowDataPacket[]>(`SELECT * FROM \`${tableName}\``);
         if (rows.length) {
             const columns = Object.keys(rows[0]);
@@ -43,7 +44,7 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         const viewName = Object.values(view)[0] as string;
         const [createView] = await connection.query<RowDataPacket[]>(`SHOW CREATE VIEW \`${viewName}\``);
         sqlDump += `DROP VIEW IF EXISTS \`${viewName}\`;\n`;
-        sqlDump += (createView[0] as any)['Create View'] + ';\n\n';
+        sqlDump += normalizeMysqlCollations((createView[0] as any)['Create View']) + ';\n\n';
     }
 
     const [triggerRows] = await connection.query<RowDataPacket[]>(`SHOW TRIGGERS`);
@@ -52,7 +53,7 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         const triggerName = trig.Trigger;
         const [createTrig] = await connection.query<RowDataPacket[]>(`SHOW CREATE TRIGGER \`${triggerName}\``);
         sqlDump += `DROP TRIGGER IF EXISTS \`${triggerName}\`;\n`;
-        sqlDump += (createTrig[0] as any)['SQL Original Statement'] + ';\n\n';
+        sqlDump += normalizeMysqlCollations((createTrig[0] as any)['SQL Original Statement']) + ';\n\n';
     }
 
     const [routinesRaw] = await connection.query<RowDataPacket[]>(
@@ -69,7 +70,7 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         );
         const key = routine.ROUTINE_TYPE === 'PROCEDURE' ? 'Create Procedure' : 'Create Function';
         sqlDump += `DROP ${routine.ROUTINE_TYPE} IF EXISTS \`${routine.ROUTINE_NAME}\`;\n`;
-        sqlDump += (createStmt[0] as any)[key] + ';\n\n';
+        sqlDump += normalizeMysqlCollations((createStmt[0] as any)[key]) + ';\n\n';
     }
 
     const [eventsRaw] = await connection.query<RowDataPacket[]>(`SHOW EVENTS`);
@@ -78,7 +79,7 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
     for (const evt of events) {
         const [createEvt] = await connection.query<RowDataPacket[]>(`SHOW CREATE EVENT \`${evt.Name}\``);
         sqlDump += `DROP EVENT IF EXISTS \`${evt.Name}\`;\n`;
-        sqlDump += (createEvt[0] as any)['Create Event'] + ';\n\n';
+        sqlDump += normalizeMysqlCollations((createEvt[0] as any)['Create Event']) + ';\n\n';
     }
 
     sqlDump += `SET FOREIGN_KEY_CHECKS=1;\n`;
