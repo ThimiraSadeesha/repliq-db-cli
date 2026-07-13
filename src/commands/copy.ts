@@ -2,6 +2,7 @@ import ora from 'ora';
 import chalk from 'chalk';
 import {confirmAction, askMultiSelect, getCreateSQL, getRoutineCreateSQL} from '../utils/prompts';
 import { getConnection } from '../utils/connection';
+import { ensureGeneralCiSession } from '../utils/normalizeMysqlDdl';
 import {DBConfig, EventRow, RoutineRow, TriggerRow} from '../types/types';
 
 const INSERT_BATCH_SIZE = 400;
@@ -33,6 +34,7 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
     try {
         const srcConn = await getConnection(srcConfig);
         const tgtConn = await getConnection(tgtConfig);
+        await ensureGeneralCiSession(tgtConn);
 
         if (copyOptions.includes('tables')) {
             spinner.text = 'Reading tables...';
