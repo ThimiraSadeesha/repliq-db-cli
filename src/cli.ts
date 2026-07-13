@@ -124,3 +124,4 @@ main().catch((error) => {
     console.error(chalk.red('Fatal error:'), error);
     process.exit(1);
 });
+
