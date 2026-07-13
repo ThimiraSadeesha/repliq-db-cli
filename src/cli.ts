@@ -2,11 +2,20 @@
 
 import figlet from 'figlet';
 import chalk from 'chalk';
-import {showMainMenu, confirmAction, promptCredentials} from './utils/prompts';
+import {showMainMenu, promptCredentials} from './utils/prompts';
 import { testConnectionCommand } from './commands/test';
 import { copyCommand } from './commands/copy';
 import { backupCommand } from './commands/backup';
 import { SessionState } from "./types/types";
+
+function getVersion(): string {
+    try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        return require('../package.json').version as string;
+    } catch {
+        return '0.0.0';
+    }
+}
 
 export function showGreeting() {
     console.clear();
@@ -27,6 +36,18 @@ export function showGreeting() {
 }
 
 async function main() {
+    const args = process.argv.slice(2);
+    if (args.includes('--version') || args.includes('-V') || args.includes('-v')) {
+        console.log(getVersion());
+        return;
+    }
+    if (args.includes('--help') || args.includes('-h')) {
+        console.log(`repliq-db ${getVersion()}
+Usage: repliq-db [--version] [--help]
+Interactive CLI for MySQL/MariaDB backup and copy.`);
+        return;
+    }
+
     showGreeting();
 
     const state: SessionState = {

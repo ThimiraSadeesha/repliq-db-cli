@@ -1,36 +1,37 @@
-name: Node.js CI/CD
+name: CI
 
 on:
   push:
     branches:
       - main
-      - release/dev
+      - feature/**
+      - release/**
   pull_request:
     branches:
       - main
-      - release/dev
+      - release/**
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || 'development' }}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 18.x
+          node-version: 20
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
 
       - name: Run tests
-        run: npm run test
+        run: npm test
 
       - name: Build
         run: npm run build
 
-      - name: Show environment
-        run: echo "Deploying to ${{ github.environment }}"
+      - name: Verify CLI version flag
+        run: node dist/cli.js --version

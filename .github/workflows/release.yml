@@ -1,0 +1,152 @@
+name: Release (npm + Homebrew)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Read package version
+        id: pkg
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          TAG="${GITHUB_REF_NAME#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Package version: $VERSION"
+          echo "Git tag: $TAG"
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "::error::package.json version ($VERSION) must match git tag ($TAG). Tag as v$VERSION"
+            exit 1
+          fi
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Wait for npm registry
+        run: |
+          VERSION="${{ steps.pkg.outputs.version }}"
+          for i in $(seq 1 30); do
+            if npm view "repliq-db@$VERSION" version >/dev/null 2>&1; then
+              echo "npm package repliq-db@$VERSION is available"
+              exit 0
+            fi
+            echo "Waiting for npm... ($i/30)"
+            sleep 5
+          done
+          echo "::error::npm package not visible yet"
+          exit 1
+
+      - name: Compute npm tarball sha256
+        id: tarball
+        run: |
+          VERSION="${{ steps.pkg.outputs.version }}"
+          URL="https://registry.npmjs.org/repliq-db/-/repliq-db-${VERSION}.tgz"
+          curl -fsSL "$URL" -o "repliq-db-${VERSION}.tgz"
+          SHA256="$(shasum -a 256 "repliq-db-${VERSION}.tgz" | awk '{print $1}')"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "sha256=$SHA256" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: ThimiraSadeesha/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update Homebrew formula
+        env:
+          VERSION: ${{ steps.pkg.outputs.version }}
+          URL: ${{ steps.tarball.outputs.url }}
+          SHA256: ${{ steps.tarball.outputs.sha256 }}
+        run: |
+          python3 <<'PY'
+          import os
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          url = os.environ["URL"]
+          sha256 = os.environ["SHA256"]
+
+          formula = f'''class RepliqDb < Formula
+            desc "Database backup and copy CLI tool"
+            homepage "https://github.com/ThimiraSadeesha/repliq-db-cli"
+            url "{url}"
+            sha256 "{sha256}"
+            license "MIT"
+
+            depends_on "node"
+
+            def install
+              system "npm", "install", "-g", "--prefix=#{{libexec}}", cached_download
+              bin.install_symlink Dir["#{{libexec}}/bin/*"]
+            end
+
+            test do
+              assert_match "{version}", shell_output("#{{bin}}/repliq-db --version")
+            end
+          end
+          '''
+          Path("homebrew-tap/repliq-db.rb").write_text(formula)
+          print(formula)
+          PY
+
+      - name: Commit and push Homebrew tap
+        working-directory: homebrew-tap
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add repliq-db.rb
+          if git diff --cached --quiet; then
+            echo "No Homebrew formula changes"
+            exit 0
+          fi
+          git commit -m "chore: bump repliq-db to ${{ steps.pkg.outputs.version }}"
+          git push origin HEAD:main
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: repliq-db ${{ steps.pkg.outputs.version }}
+          generate_release_notes: true
+          body: |
+            ## Install
+
+            ```bash
+            npm install -g repliq-db@${{ steps.pkg.outputs.version }}
+            ```
+
+            ```bash
+            brew tap ThimiraSadeesha/tap
+            brew upgrade repliq-db || brew install repliq-db
+            ```

@@ -28,7 +28,69 @@ A simple, reliable, and production-ready command-line tool for **backing up and 
 
 ## 🚀 Installation
 
-Install globally via NPM:
+### npm
 
 ```bash
-  npm install -g repliq-db
+npm install -g repliq-db
+```
+
+### Homebrew
+
+```bash
+brew tap ThimiraSadeesha/tap
+brew install repliq-db
+```
+
+Upgrade later with:
+
+```bash
+brew update
+brew upgrade repliq-db
+```
+
+---
+
+## 🏷 Releasing (npm + Homebrew via GitHub Actions)
+
+Releases are automated from git tags.
+
+1. Bump `version` in `package.json` (example: `1.0.11`).
+2. Commit and push to `main`.
+3. Create and push a matching tag:
+
+```bash
+git tag v1.0.11
+git push origin v1.0.11
+```
+
+That runs [.github/workflows/release.yml](.github/workflows/release.yml):
+
+1. Build + test
+2. Publish to [npm](https://www.npmjs.com/package/repliq-db)
+3. Update [homebrew-tap](https://github.com/ThimiraSadeesha/homebrew-tap)
+4. Create a GitHub Release
+
+### Required GitHub secrets
+
+In [repliq-db-cli](https://github.com/ThimiraSadeesha/repliq-db-cli) → **Settings → Secrets and variables → Actions**:
+
+| Secret | Purpose |
+| --- | --- |
+| `NPM_TOKEN` | npm Automation token with publish permission |
+| `HOMEBREW_TAP_TOKEN` | GitHub PAT with `contents:write` on `ThimiraSadeesha/homebrew-tap` |
+
+Also attach the workflow to a GitHub Environment named `production` (or remove `environment: production` from the release workflow).
+
+### Create the secrets
+
+**NPM_TOKEN**
+
+1. https://www.npmjs.com/settings/~/tokens
+2. Generate **Automation** token (bypasses 2FA in CI)
+3. Add as `NPM_TOKEN`
+
+**HOMEBREW_TAP_TOKEN**
+
+1. https://github.com/settings/tokens
+2. Create a classic PAT with `repo` scope (or a fine-grained token with Contents read/write on `homebrew-tap`)
+3. Add as `HOMEBREW_TAP_TOKEN`

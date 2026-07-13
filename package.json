@@ -1,11 +1,15 @@
 {
   "name": "repliq-db",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "A comprehensive database backup and restore CLI tool",
   "main": "dist/index.js",
   "bin": {
-    "repliq-db": "./dist/cli.js"
+    "repliq-db": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "ts-node src/cli.ts",
@@ -24,6 +28,14 @@
   ],
   "author": "ThimiraS",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ThimiraSadeesha/repliq-db-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ThimiraSadeesha/repliq-db-cli/issues"
+  },
+  "homepage": "https://github.com/ThimiraSadeesha/repliq-db-cli#readme",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
     "@azure/storage-blob": "^12.17.0",
