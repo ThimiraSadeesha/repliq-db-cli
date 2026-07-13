@@ -1,7 +1,7 @@
 import { DBConfig, RoutineRow, TriggerRow, EventRow } from '../types/types';
 import { RowDataPacket } from 'mysql2/promise';
 import { getConnection } from '../utils/connection';
-import { normalizeMysqlCollations } from '../utils/normalizeMysqlDdl';
+import { normalizeMysqlCollations, ensureGeneralCiSession } from '../utils/normalizeMysqlDdl';
 
 const INSERT_BATCH_SIZE = 400;
 
@@ -29,6 +29,7 @@ export async function copyDatabase(
     let eventsCopied = 0;
 
     try {
+        await ensureGeneralCiSession(tgtConn);
         await tgtConn.query('SET FOREIGN_KEY_CHECKS=0;');
 
         const [tables] = await srcConn.query<RowDataPacket[]>(`SHOW TABLES`);
