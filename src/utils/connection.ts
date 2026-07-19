@@ -32,6 +32,20 @@ export async function testConnection(config: DBConfig): Promise<boolean> {
     }
 }
 
+export async function getGeneratedColumns(
+    conn: mysql.Connection,
+    database: string,
+    table: string
+): Promise<Set<string>> {
+    const [rows] = await conn.query<any[]>(
+        `SELECT COLUMN_NAME
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND EXTRA LIKE '%GENERATED%'`,
+        [database, table]
+    );
+    return new Set((rows as any[]).map(r => r.COLUMN_NAME as string));
+}
+
 export async function getConnection(config: DBConfig) {
     const connection = await mysql.createConnection(mysqlOptionsFromDbConfig(config));
     try {

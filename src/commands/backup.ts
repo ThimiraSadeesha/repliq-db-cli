@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import chalk from 'chalk';
 import os from 'os';
 import path from 'path';
-import { getConnection } from '../utils/connection';
+import { getConnection, getGeneratedColumns } from '../utils/connection';
 import { DBConfig } from '../types/types';
 
 export async function backupCommand(config: DBConfig, outputFile?: string){
@@ -37,12 +37,13 @@ export async function backupCommand(config: DBConfig, outputFile?: string){
             sqlDump += `--\n-- Table structure for \`${tableName}\`\n--\n\n`;
             sqlDump += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
             sqlDump += createSQL + ';\n\n';
+            const generatedCols = await getGeneratedColumns(connection, config.database, tableName);
             const [rows] = await connection.query(`SELECT * FROM \`${tableName}\``);
 
             if (Array.isArray(rows) && rows.length > 0) {
                 sqlDump += `--\n-- Dumping data for table \`${tableName}\`\n--\n\n`;
 
-                const columns = Object.keys(rows[0]);
+                const columns = Object.keys(rows[0] as object).filter(c => !generatedCols.has(c));
                 sqlDump += `INSERT INTO \`${tableName}\` (${columns.map((c) => `\`${c}\``).join(', ')}) VALUES\n`;
 
                 const values: string[] = [];

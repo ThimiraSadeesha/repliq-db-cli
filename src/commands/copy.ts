@@ -1,7 +1,7 @@
 import ora from 'ora';
 import chalk from 'chalk';
 import {confirmAction, askMultiSelect, getCreateSQL, getRoutineCreateSQL} from '../utils/prompts';
-import { getConnection } from '../utils/connection';
+import { getConnection, getGeneratedColumns } from '../utils/connection';
 import { ensureGeneralCiSession } from '../utils/normalizeMysqlDdl';
 import {DBConfig, EventRow, RoutineRow, TriggerRow} from '../types/types';
 
@@ -55,9 +55,12 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
                 await tgtConn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
                 await tgtConn.query(createSQL);
 
+                const generatedCols = await getGeneratedColumns(srcConn, srcConfig.database, tableName);
+
                 const [rows] = await srcConn.query<any[]>(`SELECT * FROM \`${tableName}\``);
                 if (Array.isArray(rows) && rows.length > 0) {
-                    const columns = Object.keys(rows[0]);
+                    const columns = Object.keys(rows[0]).filter(c => !generatedCols.has(c));
+                    if (columns.length === 0) continue;
                     const colList = columns.map(c => `\`${c}\``).join(',');
                     const oneRow = `(${columns.map(() => '?').join(',')})`;
                     for (let start = 0; start < rows.length; start += INSERT_BATCH_SIZE) {

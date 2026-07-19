@@ -4,7 +4,7 @@ import os from 'os';
 
 import { DBConfig, RoutineRow, TriggerRow, EventRow } from '../types/types';
 import { RowDataPacket } from 'mysql2/promise';
-import {getConnection} from "../utils/connection";
+import {getConnection, getGeneratedColumns} from "../utils/connection";
 import { normalizeMysqlCollations } from '../utils/normalizeMysqlDdl';
 
 export async function backupDatabase(config: DBConfig, outputFile?: string): Promise<string> {
@@ -27,9 +27,10 @@ export async function backupDatabase(config: DBConfig, outputFile?: string): Pro
         sqlDump += `--\n-- Table structure for \`${tableName}\`\n--\n\n`;
         sqlDump += `DROP TABLE IF EXISTS \`${tableName}\`;\n`;
         sqlDump += normalizeMysqlCollations((createStmt[0] as any)['Create Table']) + ';\n\n';
+        const generatedCols = await getGeneratedColumns(connection, config.database, tableName);
         const [rows] = await connection.query<RowDataPacket[]>(`SELECT * FROM \`${tableName}\``);
         if (rows.length) {
-            const columns = Object.keys(rows[0]);
+            const columns = Object.keys(rows[0]).filter(c => !generatedCols.has(c));
             sqlDump += `--\n-- Data for table \`${tableName}\`\n--\n\n`;
             sqlDump += `INSERT INTO \`${tableName}\` (${columns.map(c => `\`${c}\``).join(', ')}) VALUES\n`;
             const values = rows.map(row =>

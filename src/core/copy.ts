@@ -1,6 +1,6 @@
 import { DBConfig, RoutineRow, TriggerRow, EventRow } from '../types/types';
 import { RowDataPacket } from 'mysql2/promise';
-import { getConnection } from '../utils/connection';
+import { getConnection, getGeneratedColumns } from '../utils/connection';
 import { normalizeMysqlCollations, ensureGeneralCiSession } from '../utils/normalizeMysqlDdl';
 
 const INSERT_BATCH_SIZE = 400;
@@ -41,9 +41,11 @@ export async function copyDatabase(
             await tgtConn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
             await tgtConn.query(sqlCreate);
 
+            const generatedCols = await getGeneratedColumns(srcConn, sourceConfig.database, tableName);
+
             const [rows] = await srcConn.query<RowDataPacket[]>(`SELECT * FROM \`${tableName}\``);
             if (rows.length) {
-                const columns = Object.keys(rows[0]);
+                const columns = Object.keys(rows[0]).filter(c => !generatedCols.has(c));
                 const colList = columns.map(c => `\`${c}\``).join(',');
                 const oneRow = `(${columns.map(() => '?').join(',')})`;
                 for (let start = 0; start < rows.length; start += INSERT_BATCH_SIZE) {
