@@ -1,9 +1,9 @@
 import { DBConfig, RoutineRow, TriggerRow, EventRow } from '../types/types';
 import { RowDataPacket } from 'mysql2/promise';
 import { getConnection } from '../utils/connection';
-import { normalizeMysqlCollations, ensureGeneralCiSession } from '../utils/normalizeMysqlDdl';
+import { normalizeMysqlCollations } from '../utils/normalizeMysqlDdl';
 
-const INSERT_BATCH_SIZE = 400;
+import { copyTableData, runPool, DEFAULT_CONCURRENCY, prepareTargetSession, listBaseTables, recreateTableSchema } from '../utils/copyTable';
 
 export interface CopySummary {
     tablesCopied: number;
@@ -29,42 +29,20 @@ export async function copyDatabase(
     let eventsCopied = 0;
 
     try {
-        await ensureGeneralCiSession(tgtConn);
-        await tgtConn.query('SET FOREIGN_KEY_CHECKS=0;');
+        await prepareTargetSession(tgtConn);
 
-        const [tables] = await srcConn.query<RowDataPacket[]>(`SHOW TABLES`);
-        const tableNames = tables.map(t => Object.values(t)[0] as string);
+        const tableNames = await listBaseTables(srcConn);
 
+        // Phase 1: schemas first (no open transactions, so no metadata-lock contention)
         for (const tableName of tableNames) {
-            const [createStmt] = await srcConn.query<RowDataPacket[]>(`SHOW CREATE TABLE \`${tableName}\``);
-            const sqlCreate = normalizeMysqlCollations((createStmt[0] as any)['Create Table']);
-            await tgtConn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
-            await tgtConn.query(sqlCreate);
-
-            const [rows] = await srcConn.query<RowDataPacket[]>(`SELECT * FROM \`${tableName}\``);
-            if (rows.length) {
-                const columns = Object.keys(rows[0]);
-                const colList = columns.map(c => `\`${c}\``).join(',');
-                const oneRow = `(${columns.map(() => '?').join(',')})`;
-                for (let start = 0; start < rows.length; start += INSERT_BATCH_SIZE) {
-                    const chunk = rows.slice(start, start + INSERT_BATCH_SIZE);
-                    const insertSQL = `INSERT INTO \`${tableName}\` (${colList}) VALUES ${chunk.map(() => oneRow).join(',')}`;
-                    const flat = chunk.flatMap(row =>
-                        columns.map(col => {
-                            const val = row[col];
-                            if (val === undefined || val === null || val === 'null') return null;
-                            if (val instanceof Date) return val.toISOString().slice(0, 19).replace('T', ' ');
-                            if (Array.isArray(val) || typeof val === 'object') return JSON.stringify(val);
-                            return val;
-                        })
-                    );
-                    await tgtConn.query(insertSQL, flat);
-                }
-                rowsCopied += rows.length;
-            }
-            tablesCopied++;
+            await recreateTableSchema(srcConn, tgtConn, tableName);
         }
 
+        // Phase 2: data, several tables in parallel
+        await runPool(sourceConfig, targetConfig, tableNames, DEFAULT_CONCURRENCY, async (pair, tableName) => {
+            rowsCopied += await copyTableData(pair, tableName);
+            tablesCopied++;
+        });
 
         const [views] = await srcConn.query<RowDataPacket[]>(`SHOW FULL TABLES WHERE Table_type = 'VIEW'`);
         for (const view of views) {

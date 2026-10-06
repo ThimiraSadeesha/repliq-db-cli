@@ -3,9 +3,8 @@ import chalk from 'chalk';
 import {confirmAction, askMultiSelect, getCreateSQL, getRoutineCreateSQL} from '../utils/prompts';
 import { getConnection } from '../utils/connection';
 import { ensureGeneralCiSession } from '../utils/normalizeMysqlDdl';
+import { copyTableData, runPool, DEFAULT_CONCURRENCY, prepareTargetSession, listBaseTables, recreateTableSchema } from '../utils/copyTable';
 import {DBConfig, EventRow, RoutineRow, TriggerRow} from '../types/types';
-
-const INSERT_BATCH_SIZE = 400;
 
 export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Promise<void> {
     console.log(chalk.yellow(`\n⚠️  Warning: This may replace data and objects in ${tgtConfig.database}`));
@@ -31,6 +30,14 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
 
     const spinner = ora('Starting copy process...').start();
 
+    const tryCopy = async (_label: string, fn: () => Promise<void>) => {
+        try {
+            await fn();
+        } catch {
+            // Objects the target server can't create (e.g. MySQL-only syntax on MariaDB) are skipped silently.
+        }
+    };
+
     try {
         const srcConn = await getConnection(srcConfig);
         const tgtConn = await getConnection(tgtConfig);
@@ -38,36 +45,41 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
 
         if (copyOptions.includes('tables')) {
             spinner.text = 'Reading tables...';
-            const [tables] = await srcConn.query<any[]>('SHOW TABLES');
-            const tableNames = tables.map(t => Object.values(t)[0] as string);
+            const tableNames = await listBaseTables(srcConn);
 
             spinner.text = `Found ${tableNames.length} tables to copy`;
-            await tgtConn.query('SET FOREIGN_KEY_CHECKS = 0');
+            await prepareTargetSession(tgtConn);
 
             for (let i = 0; i < tableNames.length; i++) {
-                const tableName = tableNames[i];
-                spinner.text = `Copying table ${i + 1}/${tableNames.length}: ${tableName}`;
-
-                const [createStmt] = await srcConn.query<any[]>(`SHOW CREATE TABLE \`${tableName}\``);
-                const createSQL = getCreateSQL(createStmt, 'Create Table', tableName);
-                if (!createSQL) continue;
-
-                await tgtConn.query(`DROP TABLE IF EXISTS \`${tableName}\``);
-                await tgtConn.query(createSQL);
-
-                const [rows] = await srcConn.query<any[]>(`SELECT * FROM \`${tableName}\``);
-                if (Array.isArray(rows) && rows.length > 0) {
-                    const columns = Object.keys(rows[0]);
-                    const colList = columns.map(c => `\`${c}\``).join(',');
-                    const oneRow = `(${columns.map(() => '?').join(',')})`;
-                    for (let start = 0; start < rows.length; start += INSERT_BATCH_SIZE) {
-                        const chunk = rows.slice(start, start + INSERT_BATCH_SIZE);
-                        const insertSQL = `INSERT INTO \`${tableName}\` (${colList}) VALUES ${chunk.map(() => oneRow).join(',')}`;
-                        const flat = chunk.flatMap(row => columns.map(col => row[col]));
-                        await tgtConn.query(insertSQL, flat);
-                    }
-                }
+                spinner.text = `Creating table structure ${i + 1}/${tableNames.length}: ${tableNames[i]}`;
+                await recreateTableSchema(srcConn, tgtConn, tableNames[i]);
             }
+
+            const active = new Map<string, string>();
+            const startedAt = Date.now();
+            let done = 0;
+            const render = () => {
+                const names = [...active.entries()].map(([n, info]) => `${n}${info}`);
+                const secs = Math.round((Date.now() - startedAt) / 1000);
+                spinner.text = `Copying data ${done}/${tableNames.length} tables done (${secs}s) — in progress: ${names.join(', ')}`;
+            };
+
+            await runPool(srcConfig, tgtConfig, tableNames, DEFAULT_CONCURRENCY, async (pair, tableName) => {
+                active.set(tableName, ' (starting)');
+                render();
+
+                const rowsCopied = await copyTableData(pair, tableName, (read, written, mb) => {
+                    active.set(tableName, ` (${read.toLocaleString()} rows read, ${written.toLocaleString()} written, ${mb.toFixed(1)} MB)`);
+                    render();
+                });
+                spinner.stopAndPersist({ symbol: chalk.green('✔'), text: `${tableName}: ${rowsCopied.toLocaleString()} rows` });
+                spinner.start();
+
+                active.delete(tableName);
+                done++;
+                render();
+            });
+
             await tgtConn.query('SET FOREIGN_KEY_CHECKS = 1');
         }
 
@@ -76,12 +88,14 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
             const [views] = await srcConn.query<any[]>("SHOW FULL TABLES WHERE Table_type = 'VIEW'");
             for (const view of views) {
                 const viewName = Object.values(view)[0] as string;
-                const [createView] = await srcConn.query<any[]>(`SHOW CREATE VIEW \`${viewName}\``);
-                const createSQL = getCreateSQL(createView, 'Create View', viewName);
-                if (!createSQL) continue;
+                await tryCopy(`VIEW ${viewName}`, async () => {
+                    const [createView] = await srcConn.query<any[]>(`SHOW CREATE VIEW \`${viewName}\``);
+                    const createSQL = getCreateSQL(createView, 'Create View', viewName);
+                    if (!createSQL) return;
 
-                await tgtConn.query(`DROP VIEW IF EXISTS \`${viewName}\``);
-                await tgtConn.query(createSQL);
+                    await tgtConn.query(`DROP VIEW IF EXISTS \`${viewName}\``);
+                    await tgtConn.query(createSQL);
+                });
             }
         }
 
@@ -92,12 +106,14 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
 
             for (const trig of triggers) {
                 const triggerName = trig.Trigger;
-                const [createTrig] = await srcConn.query<any[]>(`SHOW CREATE TRIGGER \`${triggerName}\``);
-                const sql = getCreateSQL(createTrig, 'SQL Original Statement', triggerName);
-                if (!sql) continue;
+                await tryCopy(`TRIGGER ${triggerName}`, async () => {
+                    const [createTrig] = await srcConn.query<any[]>(`SHOW CREATE TRIGGER \`${triggerName}\``);
+                    const sql = getCreateSQL(createTrig, 'SQL Original Statement', triggerName);
+                    if (!sql) return;
 
-                await tgtConn.query(`DROP TRIGGER IF EXISTS \`${triggerName}\``);
-                await tgtConn.query(sql);
+                    await tgtConn.query(`DROP TRIGGER IF EXISTS \`${triggerName}\``);
+                    await tgtConn.query(sql);
+                });
             }
         }
 
@@ -114,12 +130,15 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
             for (const routine of routines) {
                 const name = routine.ROUTINE_NAME;
                 const type = routine.ROUTINE_TYPE;
-                const [createStmt] = await srcConn.query<any[]>(`SHOW CREATE ${type} \`${name}\``);
-                const sql = getRoutineCreateSQL(createStmt, type, name);
-                if (!sql) continue;
+                spinner.text = `Copying ${type.toLowerCase()} ${name}`;
+                await tryCopy(`${type} ${name}`, async () => {
+                    const [createStmt] = await srcConn.query<any[]>(`SHOW CREATE ${type} \`${name}\``);
+                    const sql = getRoutineCreateSQL(createStmt, type, name);
+                    if (!sql) return;
 
-                await tgtConn.query(`DROP ${type} IF EXISTS \`${name}\``);
-                await tgtConn.query(sql);
+                    await tgtConn.query(`DROP ${type} IF EXISTS \`${name}\``);
+                    await tgtConn.query(sql);
+                });
             }
         }
 
@@ -130,12 +149,14 @@ export async function copyCommand(srcConfig: DBConfig, tgtConfig: DBConfig): Pro
 
             for (const evt of events) {
                 const eventName = evt.Name;
-                const [createEvt] = await srcConn.query<any[]>(`SHOW CREATE EVENT \`${eventName}\``);
-                const sql = getCreateSQL(createEvt, 'Create Event', eventName);
-                if (!sql) continue;
+                await tryCopy(`EVENT ${eventName}`, async () => {
+                    const [createEvt] = await srcConn.query<any[]>(`SHOW CREATE EVENT \`${eventName}\``);
+                    const sql = getCreateSQL(createEvt, 'Create Event', eventName);
+                    if (!sql) return;
 
-                await tgtConn.query(`DROP EVENT IF EXISTS \`${eventName}\``);
-                await tgtConn.query(sql);
+                    await tgtConn.query(`DROP EVENT IF EXISTS \`${eventName}\``);
+                    await tgtConn.query(sql);
+                });
             }
         }
 
