@@ -9,12 +9,14 @@ const KEEPALIVE_INITIAL_DELAY_MS = 10_000;
 
 const NET_IO_TIMEOUT_SEC = 600;
 
-export function mysqlOptionsFromDbConfig(config: DBConfig): ConnectionOptions {
+export function mysqlOptionsFromDbConfig(config: DBConfig, extra: ConnectionOptions = {}): ConnectionOptions {
     return {
         ...config,
+        supportBigNumbers: true,
         connectTimeout: CONNECT_TIMEOUT_MS,
         enableKeepAlive: true,
         keepAliveInitialDelay: KEEPALIVE_INITIAL_DELAY_MS,
+        ...extra,
     };
 }
 
@@ -32,8 +34,8 @@ export async function testConnection(config: DBConfig): Promise<boolean> {
     }
 }
 
-export async function getConnection(config: DBConfig) {
-    const connection = await mysql.createConnection(mysqlOptionsFromDbConfig(config));
+export async function getConnection(config: DBConfig, extra: ConnectionOptions = {}) {
+    const connection = await mysql.createConnection(mysqlOptionsFromDbConfig(config, extra));
     try {
         await connection.query(
             `SET SESSION net_read_timeout = ?, net_write_timeout = ?`,
